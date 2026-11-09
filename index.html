@@ -4,6 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#243b53">
 <title>Latin Square 6 Solver</title>
 
 <style>
@@ -18,7 +19,7 @@ body {
 
 main { max-width: 550px; margin: auto; }
 
-h1 { text-align: center; }
+h1 { text-align: center; font-size: 1.5rem; }
 
 .panel {
   background: white;
@@ -34,10 +35,14 @@ h1 { text-align: center; }
 }
 
 .symbols input {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 42px;
   text-align: center;
-  font-size: 20px;
+  font-size: 16px;
+  font-weight: bold;
+  text-transform: uppercase;
+  border: 1px solid #b9c8d4;
+  border-radius: 6px;
 }
 
 .board {
@@ -61,11 +66,10 @@ h1 { text-align: center; }
 .cell:nth-last-child(-n+6) { border-bottom: 0; }
 
 .cell.selected { background: #dbeafe; }
-
 .cell.invalid { background: #ffe0df; }
 
 .value {
-  font-size: clamp(20px, 5vw, 30px);
+  font-size: clamp(12px, 3.5vw, 22px);
   font-weight: bold;
   z-index: 2;
 }
@@ -78,7 +82,7 @@ h1 { text-align: center; }
   grid-template-rows: repeat(2, 1fr);
   justify-items: center;
   align-items: center;
-  font-size: clamp(8px, 2vw, 11px);
+  font-size: clamp(7px, 1.8vw, 10px);
   color: #8293a3;
   pointer-events: none;
 }
@@ -98,6 +102,7 @@ button {
   background: #243b53;
   color: white;
   font-size: 15px;
+  cursor: pointer;
 }
 
 .secondary {
@@ -109,6 +114,7 @@ button {
   text-align: center;
   margin-top: 12px;
   font-weight: bold;
+  min-height: 24px;
 }
 
 #keyboardInput {
@@ -120,6 +126,12 @@ button {
   opacity: 0.01;
 }
 
+.instructions {
+  text-align: center;
+  color: #607487;
+  font-size: 0.9rem;
+}
+
 </style>
 </head>
 
@@ -129,12 +141,12 @@ button {
 
 <h1>Latin Square 6 Solver</h1>
 
-<p style="text-align:center">
-Click a square, then type a letter.
+<p class="instructions">
+Click a square, then type its two-character symbol.
 </p>
 
 <div class="panel">
-  <p style="text-align:center">Your six symbols</p>
+  <p class="instructions">Your six symbols (edit these)</p>
   <div class="symbols" id="symbols"></div>
 </div>
 
@@ -156,6 +168,7 @@ Click a square, then type a letter.
 
 <input id="keyboardInput"
        type="text"
+       maxlength="2"
        autocomplete="off"
        autocapitalize="characters">
 
@@ -163,7 +176,8 @@ Click a square, then type a letter.
 
 const SIZE = 6;
 
-let symbols = ["A","B","C","D","E","F"];
+// Change these to your preferred two-character codes.
+let symbols = ["Ba","Bo","Ca","Co","Da","Do"];
 
 let grid = Array.from(
   {length: 6},
@@ -220,44 +234,60 @@ function conflict(row, col) {
 }
 
 function renderSymbols() {
+
   const container = document.getElementById("symbols");
   container.innerHTML = "";
 
   symbols.forEach((symbol, index) => {
+
     let input = document.createElement("input");
+
     input.value = symbol;
-    input.maxLength = 1;
+    input.maxLength = 2;
+
+    input.setAttribute(
+      "aria-label",
+      "Symbol " + (index + 1)
+    );
 
     input.addEventListener("change", () => {
-      let value = input.value.toUpperCase().trim();
+
+      let value = input.value.trim().toUpperCase();
 
       if (
-        value.length !== 1 ||
-        symbols.some((s, i) => i !== index && s === value)
+        value.length !== 2 ||
+        symbols.some((s, i) => i !== index && s.toUpperCase() === value)
       ) {
         input.value = symbols[index];
-        setStatus("Use six different symbols.");
+        setStatus("Use six different two-character symbols.");
         return;
       }
 
       saveHistory();
 
       let old = symbols[index];
+
       symbols[index] = value;
 
       grid = grid.map(row =>
-        row.map(cell => cell === old ? value : cell)
+        row.map(cell =>
+          cell.toUpperCase() === old.toUpperCase() ? value : cell
+        )
       );
 
       render();
+
       setStatus("Symbols updated.");
     });
 
     container.appendChild(input);
+
   });
+
 }
 
 function render() {
+
   board.innerHTML = "";
 
   for (let row = 0; row < 6; row++) {
@@ -284,54 +314,68 @@ function render() {
       possible.className = "candidates";
 
       candidates(row, col).forEach(symbol => {
+
         let span = document.createElement("span");
         span.textContent = symbol;
+
         possible.appendChild(span);
+
       });
 
       cell.appendChild(possible);
 
       cell.addEventListener("click", () => {
+
         selectedRow = row;
         selectedCol = col;
 
         render();
 
-        // Focus the single hidden keyboard input.
+        keyboard.value = "";
         keyboard.focus();
+
       });
 
       board.appendChild(cell);
+
     }
   }
+
 }
 
+// Capture two-character codes.
 keyboard.addEventListener("input", () => {
 
   let value = keyboard.value.toUpperCase().trim();
 
-  // Clear the input so it is ready for the next key.
+  // Wait until two characters have been entered.
+  if (value.length < 2) return;
+
   keyboard.value = "";
 
-  if (!value) return;
+  if (symbols.some(s => s.toUpperCase() === value)) {
 
-  if (symbols.includes(value)) {
+    let symbol = symbols.find(
+      s => s.toUpperCase() === value
+    );
 
     saveHistory();
 
-    grid[selectedRow][selectedCol] = value;
+    grid[selectedRow][selectedCol] = symbol;
 
     render();
+
+    keyboard.focus();
 
     setStatus(
       conflict(selectedRow, selectedCol)
       ? "Duplicate in row or column!"
-      : "Letter entered."
+      : symbol + " entered."
     );
 
   } else {
 
-    setStatus("Please enter one of your six symbols.");
+    setStatus("Unknown symbol: " + value);
 
   }
 
@@ -347,9 +391,14 @@ keyboard.addEventListener("keydown", event => {
   else if (event.key === "ArrowDown") row = Math.min(5, row + 1);
   else if (event.key === "ArrowUp") row = Math.max(0, row - 1);
 
-  else if (event.key === "Backspace" || event.key === "Delete") {
+  else if (
+    event.key === "Backspace" ||
+    event.key === "Delete"
+  ) {
 
     event.preventDefault();
+
+    keyboard.value = "";
 
     saveHistory();
 
@@ -362,6 +411,7 @@ keyboard.addEventListener("keydown", event => {
     setStatus("Square cleared.");
 
     return;
+
   }
 
   if (row !== selectedRow || col !== selectedCol) {
@@ -371,9 +421,12 @@ keyboard.addEventListener("keydown", event => {
     selectedRow = row;
     selectedCol = col;
 
+    keyboard.value = "";
+
     render();
 
     keyboard.focus();
+
   }
 
 });
@@ -389,6 +442,7 @@ function clearGrid() {
 
   render();
 
+  keyboard.value = "";
   keyboard.focus();
 
   setStatus("Grid cleared.");
@@ -410,6 +464,7 @@ function undo() {
   renderSymbols();
   render();
 
+  keyboard.value = "";
   keyboard.focus();
 
   setStatus("Undo complete.");
@@ -438,7 +493,7 @@ function checkGrid() {
     setStatus("Complete and valid Latin square!");
   }
   else {
-    setStatus(`No conflicts. ${filled}/36 cells filled.`);
+    setStatus(`No conflicts. ${filled}/36 squares filled.`);
   }
 
 }
