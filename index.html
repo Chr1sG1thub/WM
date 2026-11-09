@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#243b53">
+<link rel="manifest" href="manifest.json">
+<title>Latin Square 6 Solver</title>
+<style>
+:root{color-scheme:light;--ink:#243b53;--accent:#287d8e;--line:#b9c8d4;--paper:#f4f7fa;--bad:#ffe0df;--good:#e5f4ef}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px system-ui,-apple-system,sans-serif}
+main{max-width:760px;margin:auto;padding:20px 16px 32px}header{text-align:center;margin-bottom:18px}h1{font-size:1.55rem;margin:0 0 5px}header p{margin:0;color:#526678}
+.panel{background:white;border:1px solid #d8e1e8;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 3px 12px #243b5308}
+.symbols{display:flex;gap:7px;justify-content:center;flex-wrap:wrap}.symbols input{width:44px;height:42px;text-align:center;font-size:1.1rem;font-weight:700;border:1px solid var(--line);border-radius:8px;color:var(--ink)}
+.board-wrap{display:flex;justify-content:center}.board{width:min(100%,540px);display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border:2px solid var(--ink);background:white}
+.cell{aspect-ratio:1;min-width:0;border:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:2px;background:#fff;position:relative}
+.cell:nth-child(6n){border-right:0}.cell:nth-last-child(-n+6){border-bottom:0}
+.cell input{width:100%;height:100%;border:0;background:transparent;text-align:center;font-size:clamp(1.15rem,5vw,2rem);font-weight:700;color:var(--ink);outline:none;text-transform:uppercase}
+.cell input:focus{background:#e8f5f8;box-shadow:inset 0 0 0 2px var(--accent)}
+.cell.invalid{background:var(--bad)}.cell.invalid input{color:#a12a26}
+.candidates{position:absolute;inset:3px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);align-items:center;justify-items:center;pointer-events:none;color:#7a8b99;font-size:clamp(.48rem,2vw,.72rem);line-height:1}
+.cell input:not(:placeholder-shown)+.candidates{display:none}
+.cell input:placeholder-shown{font-size:0}
+.controls{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
+button{border:0;border-radius:9px;padding:10px 15px;background:var(--ink);color:white;font:inherit;font-weight:600;cursor:pointer}
+button.secondary{background:#e5edf2;color:var(--ink)}button:active{transform:translateY(1px)}
+.status{text-align:center;font-weight:600;margin-top:12px;min-height:1.5em}.hint{text-align:center;color:#607487;font-size:.9rem;margin:10px 0 0}
+.legend{display:flex;justify-content:center;gap:15px;flex-wrap:wrap;font-size:.85rem;color:#607487}.dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;background:#ffe0df}
+@media(max-width:420px){main{padding:12px 8px}.panel{padding:10px}.cell{padding:1px}}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Latin Square 6 Solver</h1><p>Enter symbols in the grid. Empty cells show their remaining possibilities.</p></header>
+<section class="panel">
+<div class="symbols" id="symbols" aria-label="Symbols"></div>
+<p class="hint">Set the six symbols here (default A–F).</p>
+</section>
+<section class="panel">
+<div class="board-wrap"><div class="board" id="board" role="grid" aria-label="6 by 6 Latin square"></div></div>
+<div class="controls">
+<button id="clear">Clear grid</button><button class="secondary" id="undo">Undo</button><button class="secondary" id="check">Check square</button>
+</div>
+<div class="status" id="status" aria-live="polite">Ready — fill in any known letters.</div>
+<div class="legend"><span><i class="dot"></i>Duplicate in row or column</span><span>Grey mini-letters = candidates</span></div>
+</section>
+<p class="hint">A Latin square has each symbol exactly once in every row and column. This tool checks row/column constraints only.</p>
+</main>
+<script>
+const N=6;let alphabet=['A','B','C','D','E','F'];let grid=Array.from({length:N},()=>Array(N).fill(''));let history=[];
+const board=document.getElementById('board'),symbolsEl=document.getElementById('symbols'),statusEl=document.getElementById('status');
+function snapshot(){history.push({grid:grid.map(r=>r.slice()),alphabet:alphabet.slice()});if(history.length>100)history.shift()}
+function used(r,c){const s=new Set();for(let i=0;i<N;i++){if(grid[r][i])s.add(grid[r][i]);if(grid[i][c])s.add(grid[i][c])}return s}
+function candidates(r,c){if(grid[r][c])return [];const u=used(r,c);return alphabet.filter(x=>!u.has(x))}
+function duplicate(r,c){let v=grid[r][c];if(!v)return false;return grid[r].filter(x=>x===v).length>1||grid.map(row=>row[c]).filter(x=>x===v).length>1}
+function renderSymbols(){symbolsEl.innerHTML='';alphabet.forEach((v,i)=>{const inp=document.createElement('input');inp.value=v;inp.maxLength=1;inp.setAttribute('aria-label','Symbol '+(i+1));inp.addEventListener('change',()=>{let next=inp.value.trim().toUpperCase();if(!next||next.length!==1||alphabet.some((x,j)=>j!==i&&x===next)){inp.value=alphabet[i];status('Symbols must be six distinct single characters.');return}snapshot();const old=alphabet[i];alphabet[i]=next;grid=grid.map(row=>row.map(x=>x===old?next:x));render();status('Symbols updated.');});symbolsEl.appendChild(inp)})}
+function render(){board.innerHTML='';for(let r=0;r<N;r++)for(let c=0;c<N;c++){const cell=document.createElement('div');cell.className='cell'+(duplicate(r,c)?' invalid':'');cell.setAttribute('role','gridcell');const inp=document.createElement('input');inp.value=grid[r][c];inp.placeholder=' ';inp.maxLength=1;inp.autocomplete='off';inp.setAttribute('aria-label',`Row ${r+1}, column ${c+1}`);inp.addEventListener('input',()=>{let v=inp.value.trim().toUpperCase();if(v&&!alphabet.includes(v)){inp.value=grid[r][c];status('Use one of the six symbols above.');return}snapshot();grid[r][c]=v;render();const target=board.children[r*N+c].querySelector('input');target.focus();status(duplicate(r,c)?'Duplicate symbol in this row or column.':'Updated possibilities.');});cell.appendChild(inp);const cand=document.createElement('div');cand.className='candidates';candidates(r,c).forEach(v=>{const span=document.createElement('span');span.textContent=v;cand.appendChild(span)});cell.appendChild(cand);board.appendChild(cell)}}
+function status(s){statusEl.textContent=s}
+document.getElementById('clear').onclick=()=>{snapshot();grid=Array.from({length:N},()=>Array(N).fill(''));render();status('Grid cleared.');};
+document.getElementById('undo').onclick=()=>{if(!history.length){status('Nothing to undo.');return}const h=history.pop();grid=h.grid;alphabet=h.alphabet;renderSymbols();render();status('Last change undone.');};
+document.getElementById('check').onclick=()=>{let errors=0,filled=0;for(let r=0;r<N;r++)for(let c=0;c<N;c++){if(grid[r][c])filled++;if(duplicate(r,c))errors++}if(errors)status(`${errors} conflicting filled cell(s) — check highlighted squares.`);else if(filled===36)status('Complete and valid Latin square!');else status(`No conflicts. ${filled}/36 cells filled; ${36-filled} remain.`)};
+renderSymbols();render();
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body>
+</html>
