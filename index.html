@@ -4,7 +4,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#243b53">
 <title>Latin Square 6 Solver</title>
 
 <style>
@@ -14,30 +13,18 @@ body {
   font-family: system-ui, sans-serif;
   background: #f1f5f9;
   color: #243b53;
-  margin: 0;
-  padding: 16px;
+  padding: 12px;
 }
 
-main {
-  max-width: 600px;
-  margin: auto;
-}
+main { max-width: 550px; margin: auto; }
 
-h1 {
-  text-align: center;
-  font-size: 1.6rem;
-}
-
-p {
-  text-align: center;
-  color: #607487;
-}
+h1 { text-align: center; }
 
 .panel {
   background: white;
-  border-radius: 14px;
-  padding: 14px;
-  margin: 14px 0;
+  border-radius: 12px;
+  padding: 12px;
+  margin: 12px 0;
 }
 
 .symbols {
@@ -48,12 +35,9 @@ p {
 
 .symbols input {
   width: 40px;
-  height: 42px;
+  height: 40px;
   text-align: center;
   font-size: 20px;
-  font-weight: bold;
-  border: 1px solid #b9c8d4;
-  border-radius: 6px;
 }
 
 .board {
@@ -67,34 +51,23 @@ p {
   position: relative;
   border-right: 1px solid #b9c8d4;
   border-bottom: 1px solid #b9c8d4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
-.cell:nth-child(6n) {
-  border-right: 0;
-}
+.cell:nth-child(6n) { border-right: 0; }
+.cell:nth-last-child(-n+6) { border-bottom: 0; }
 
-.cell:nth-last-child(-n+6) {
-  border-bottom: 0;
-}
+.cell.selected { background: #dbeafe; }
 
-.cell input {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  outline: none;
-  background: transparent;
-  text-align: center;
+.cell.invalid { background: #ffe0df; }
+
+.value {
   font-size: clamp(20px, 5vw, 30px);
   font-weight: bold;
-  color: #243b53;
-  text-transform: uppercase;
-  padding: 0;
-  position: relative;
   z-index: 2;
-}
-
-.cell input:focus {
-  background: #e0f2fe;
 }
 
 .candidates {
@@ -103,31 +76,19 @@ p {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(2, 1fr);
-  align-items: center;
   justify-items: center;
-  color: #8293a3;
+  align-items: center;
   font-size: clamp(8px, 2vw, 11px);
+  color: #8293a3;
   pointer-events: none;
-}
-
-.cell input:placeholder-shown {
-  font-size: 0;
-}
-
-.cell.invalid {
-  background: #ffe0df;
-}
-
-.cell.invalid input {
-  color: #b91c1c;
 }
 
 .buttons {
   display: flex;
-  gap: 8px;
   flex-wrap: wrap;
   justify-content: center;
-  margin-top: 14px;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 button {
@@ -137,19 +98,26 @@ button {
   background: #243b53;
   color: white;
   font-size: 15px;
-  cursor: pointer;
 }
 
-button.secondary {
+.secondary {
   background: #e2e8f0;
   color: #243b53;
 }
 
 #status {
   text-align: center;
+  margin-top: 12px;
   font-weight: bold;
-  margin-top: 14px;
-  min-height: 24px;
+}
+
+#keyboardInput {
+  position: fixed;
+  left: -100px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0.01;
 }
 
 </style>
@@ -161,10 +129,12 @@ button.secondary {
 
 <h1>Latin Square 6 Solver</h1>
 
-<p>Enter letters in the grid to see the remaining possibilities.</p>
+<p style="text-align:center">
+Click a square, then type a letter.
+</p>
 
 <div class="panel">
-  <p>Choose your six symbols:</p>
+  <p style="text-align:center">Your six symbols</p>
   <div class="symbols" id="symbols"></div>
 </div>
 
@@ -175,18 +145,19 @@ button.secondary {
   <div class="buttons">
     <button onclick="clearGrid()">Clear grid</button>
     <button class="secondary" onclick="undo()">Undo</button>
-    <button class="secondary" onclick="checkGrid()">Check square</button>
+    <button class="secondary" onclick="checkGrid()">Check</button>
   </div>
 
   <div id="status">Ready</div>
 
 </div>
 
-<p>
-Each symbol must appear once in every row and column.
-</p>
-
 </main>
+
+<input id="keyboardInput"
+       type="text"
+       autocomplete="off"
+       autocapitalize="characters">
 
 <script>
 
@@ -195,11 +166,17 @@ const SIZE = 6;
 let symbols = ["A","B","C","D","E","F"];
 
 let grid = Array.from(
-  {length: SIZE},
-  () => Array(SIZE).fill("")
+  {length: 6},
+  () => Array(6).fill("")
 );
 
+let selectedRow = 0;
+let selectedCol = 0;
+
 let history = [];
+
+const board = document.getElementById("board");
+const keyboard = document.getElementById("keyboardInput");
 
 function saveHistory() {
   history.push({
@@ -208,54 +185,50 @@ function saveHistory() {
   });
 }
 
-function getUsed(row, col) {
+function setStatus(text) {
+  document.getElementById("status").textContent = text;
+}
 
-  let used = new Set();
+function used(row, col) {
+  let result = new Set();
 
-  for (let i = 0; i < SIZE; i++) {
-    if (grid[row][i]) used.add(grid[row][i]);
-    if (grid[i][col]) used.add(grid[i][col]);
+  for (let i = 0; i < 6; i++) {
+    if (grid[row][i]) result.add(grid[row][i]);
+    if (grid[i][col]) result.add(grid[i][col]);
   }
 
-  return used;
+  return result;
 }
 
-function getCandidates(row, col) {
-
+function candidates(row, col) {
   if (grid[row][col]) return [];
 
-  let used = getUsed(row, col);
+  let taken = used(row, col);
 
-  return symbols.filter(s => !used.has(s));
+  return symbols.filter(s => !taken.has(s));
 }
 
-function hasConflict(row, col) {
+function conflict(row, col) {
+  let v = grid[row][col];
 
-  let value = grid[row][col];
-
-  if (!value) return false;
+  if (!v) return false;
 
   return (
-    grid[row].filter(v => v === value).length > 1 ||
-    grid.map(r => r[col]).filter(v => v === value).length > 1
+    grid[row].filter(x => x === v).length > 1 ||
+    grid.map(r => r[col]).filter(x => x === v).length > 1
   );
 }
 
 function renderSymbols() {
-
   const container = document.getElementById("symbols");
-
   container.innerHTML = "";
 
   symbols.forEach((symbol, index) => {
-
     let input = document.createElement("input");
-
     input.value = symbol;
     input.maxLength = 1;
 
     input.addEventListener("change", () => {
-
       let value = input.value.toUpperCase().trim();
 
       if (
@@ -263,14 +236,13 @@ function renderSymbols() {
         symbols.some((s, i) => i !== index && s === value)
       ) {
         input.value = symbols[index];
-        setStatus("Please use six different symbols.");
+        setStatus("Use six different symbols.");
         return;
       }
 
       saveHistory();
 
       let old = symbols[index];
-
       symbols[index] = value;
 
       grid = grid.map(row =>
@@ -278,157 +250,146 @@ function renderSymbols() {
       );
 
       render();
-
       setStatus("Symbols updated.");
-
     });
 
     container.appendChild(input);
-
   });
 }
 
-
 function render() {
+  board.innerHTML = "";
 
-  const board = document.getElementById("board");
+  for (let row = 0; row < 6; row++) {
+    for (let col = 0; col < 6; col++) {
 
-  // Build the 36 cells only once.
-  if (board.children.length !== 36) {
+      let cell = document.createElement("div");
+      cell.className = "cell";
 
-    board.innerHTML = "";
-
-    for (let row = 0; row < SIZE; row++) {
-      for (let col = 0; col < SIZE; col++) {
-
-        const cell = document.createElement("div");
-        cell.className = "cell";
-
-        const input = document.createElement("input");
-        input.maxLength = 1;
-        input.autocomplete = "off";
-        input.placeholder = " ";
-
-        input.setAttribute(
-          "aria-label",
-          `Row ${row + 1}, column ${col + 1}`
-        );
-
-        const candidates = document.createElement("div");
-        candidates.className = "candidates";
-
-        cell.appendChild(input);
-        cell.appendChild(candidates);
-        board.appendChild(cell);
-
-        input.addEventListener("input", () => {
-
-          let value = input.value.toUpperCase().trim();
-
-          if (value && !symbols.includes(value)) {
-            input.value = grid[row][col];
-            setStatus("Please enter one of the six symbols.");
-            return;
-          }
-
-          saveHistory();
-
-          grid[row][col] = value;
-
-          // Update without rebuilding the input.
-          refreshCells();
-
-          setStatus(
-            hasConflict(row, col)
-            ? "Duplicate in row or column!"
-            : "Possibilities updated."
-          );
-
-        });
-
-        input.addEventListener("keydown", event => {
-
-          let r = row;
-          let c = col;
-
-          if (event.key === "ArrowRight") c = Math.min(5, col + 1);
-          else if (event.key === "ArrowLeft") c = Math.max(0, col - 1);
-          else if (event.key === "ArrowDown") r = Math.min(5, row + 1);
-          else if (event.key === "ArrowUp") r = Math.max(0, row - 1);
-
-          else if (event.key === "Backspace" ||
-                   event.key === "Delete") {
-
-            event.preventDefault();
-
-            if (grid[row][col]) {
-              saveHistory();
-              grid[row][col] = "";
-              refreshCells();
-              input.focus();
-              setStatus("Square cleared.");
-            }
-
-            return;
-          }
-
-          if (r !== row || c !== col) {
-            event.preventDefault();
-            board.children[r * SIZE + c]
-              .querySelector("input").focus();
-          }
-
-        });
-
+      if (row === selectedRow && col === selectedCol) {
+        cell.classList.add("selected");
       }
-    }
-  }
 
-  refreshCells();
-}
+      if (conflict(row, col)) {
+        cell.classList.add("invalid");
+      }
 
-function refreshCells() {
+      let value = document.createElement("div");
+      value.className = "value";
+      value.textContent = grid[row][col];
 
-  const board = document.getElementById("board");
+      cell.appendChild(value);
 
-  for (let row = 0; row < SIZE; row++) {
-    for (let col = 0; col < SIZE; col++) {
+      let possible = document.createElement("div");
+      possible.className = "candidates";
 
-      const cell = board.children[row * SIZE + col];
-      const input = cell.querySelector("input");
-      const candidates = cell.querySelector(".candidates");
-
-      input.value = grid[row][col];
-
-      cell.classList.toggle(
-        "invalid",
-        hasConflict(row, col)
-      );
-
-      candidates.innerHTML = "";
-
-      getCandidates(row, col).forEach(symbol => {
-
-        const span = document.createElement("span");
+      candidates(row, col).forEach(symbol => {
+        let span = document.createElement("span");
         span.textContent = symbol;
-        candidates.appendChild(span);
-
+        possible.appendChild(span);
       });
 
+      cell.appendChild(possible);
+
+      cell.addEventListener("click", () => {
+        selectedRow = row;
+        selectedCol = col;
+
+        render();
+
+        // Focus the single hidden keyboard input.
+        keyboard.focus();
+      });
+
+      board.appendChild(cell);
     }
   }
 }
+
+keyboard.addEventListener("input", () => {
+
+  let value = keyboard.value.toUpperCase().trim();
+
+  // Clear the input so it is ready for the next key.
+  keyboard.value = "";
+
+  if (!value) return;
+
+  if (symbols.includes(value)) {
+
+    saveHistory();
+
+    grid[selectedRow][selectedCol] = value;
+
+    render();
+
+    setStatus(
+      conflict(selectedRow, selectedCol)
+      ? "Duplicate in row or column!"
+      : "Letter entered."
+    );
+
+  } else {
+
+    setStatus("Please enter one of your six symbols.");
+
+  }
+
+});
+
+keyboard.addEventListener("keydown", event => {
+
+  let row = selectedRow;
+  let col = selectedCol;
+
+  if (event.key === "ArrowRight") col = Math.min(5, col + 1);
+  else if (event.key === "ArrowLeft") col = Math.max(0, col - 1);
+  else if (event.key === "ArrowDown") row = Math.min(5, row + 1);
+  else if (event.key === "ArrowUp") row = Math.max(0, row - 1);
+
+  else if (event.key === "Backspace" || event.key === "Delete") {
+
+    event.preventDefault();
+
+    saveHistory();
+
+    grid[selectedRow][selectedCol] = "";
+
+    render();
+
+    keyboard.focus();
+
+    setStatus("Square cleared.");
+
+    return;
+  }
+
+  if (row !== selectedRow || col !== selectedCol) {
+
+    event.preventDefault();
+
+    selectedRow = row;
+    selectedCol = col;
+
+    render();
+
+    keyboard.focus();
+  }
+
+});
 
 function clearGrid() {
 
   saveHistory();
 
   grid = Array.from(
-    {length: SIZE},
-    () => Array(SIZE).fill("")
+    {length: 6},
+    () => Array(6).fill("")
   );
 
   render();
+
+  keyboard.focus();
 
   setStatus("Grid cleared.");
 
@@ -436,7 +397,7 @@ function clearGrid() {
 
 function undo() {
 
-  if (history.length === 0) {
+  if (!history.length) {
     setStatus("Nothing to undo.");
     return;
   }
@@ -449,6 +410,8 @@ function undo() {
   renderSymbols();
   render();
 
+  keyboard.focus();
+
   setStatus("Undo complete.");
 
 }
@@ -456,40 +419,28 @@ function undo() {
 function checkGrid() {
 
   let filled = 0;
-  let conflicts = 0;
+  let errors = 0;
 
-  for (let row = 0; row < SIZE; row++) {
-
-    for (let col = 0; col < SIZE; col++) {
+  for (let row = 0; row < 6; row++) {
+    for (let col = 0; col < 6; col++) {
 
       if (grid[row][col]) filled++;
 
-      if (hasConflict(row, col)) conflicts++;
+      if (conflict(row, col)) errors++;
 
     }
-
   }
 
-  if (conflicts) {
-
-    setStatus("There are conflicting letters.");
-
-  } else if (filled === 36) {
-
+  if (errors) {
+    setStatus("Conflicts detected.");
+  }
+  else if (filled === 36) {
     setStatus("Complete and valid Latin square!");
-
-  } else {
-
-    setStatus(
-      `No conflicts. ${filled}/36 squares filled.`
-    );
-
+  }
+  else {
+    setStatus(`No conflicts. ${filled}/36 cells filled.`);
   }
 
-}
-
-function setStatus(message) {
-  document.getElementById("status").textContent = message;
 }
 
 renderSymbols();
